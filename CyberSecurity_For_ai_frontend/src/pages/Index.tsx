@@ -37,6 +37,7 @@ const ATTACKER_IPS = [
   { value: "geo_cn", label: "🇨🇳 China (CN) — Geo Block",          ip: "116.31.116.1",    kind: "geo", country: "China (CN)", flag: "🇨🇳" },
   { value: "geo_ru", label: "🇷🇺 Russia (RU) — Geo Block",        ip: "95.173.136.1",    kind: "geo", country: "Russia (RU)", flag: "🇷🇺" },
   { value: "geo_ir", label: "🇮🇷 Iran (IR) — Geo Block",          ip: "5.160.0.1",       kind: "geo", country: "Iran (IR)", flag: "🇮🇷" },
+  { value: "geo_kp", label: "🇰🇵 North Korea (KP) — Geo Block",   ip: "175.45.176.5",    kind: "geo", country: "North Korea (KP)", flag: "🇰🇵" },
 ];
 
 // ── Known TOR IPs ─────────────────────────────────────────────────
@@ -47,6 +48,7 @@ const GEO_IPS   = new Map([
   ["116.31.116.1", { country: "China (CN)",  flag: "🇨🇳", region: "Asia/Shanghai" }],
   ["95.173.136.1", { country: "Russia (RU)", flag: "🇷🇺", region: "Europe/Moscow" }],
   ["5.160.0.1",    { country: "Iran (IR)",   flag: "🇮🇷", region: "Asia/Tehran" }],
+  ["175.45.176.5", { country: "North Korea (KP)", flag: "🇰🇵", region: "Asia/Pyongyang" }],
 ]);
 
 // ── DNS Allowlist (for API exploit check) ─────────────────────────

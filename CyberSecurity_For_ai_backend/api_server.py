@@ -13,6 +13,11 @@
 #   POST /api/reset  — Reset conversation & threat history
 #   GET  /api/health — Health check
 
+import sys
+if sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 import os
 from dotenv import load_dotenv
 
@@ -79,21 +84,29 @@ def call_api_llm(prompt: str) -> str:
         return "Unknown API provider."
 
 
-# ─── Monkey-patch ask_gemma when in API mode ──────────────────────────
-if LLM_MODE == "api":
+# ─── Monkey-patch ask_gemma when in API or Hybrid mode ────────────────
+if LLM_MODE in ("api", "hybrid"):
     import main as _main_module
 
     _original_ask_gemma = _main_module.ask_gemma
 
     def _api_ask_gemma(prompt, safe_mode=False):
-        """Replacement for ask_gemma that routes to external API."""
+        """Replacement for ask_gemma that routes to external API with local fallback."""
         from security_layer import build_safe_system_prompt
-        if safe_mode:
-            prompt = build_safe_system_prompt(prompt)
+        
+        # If hybrid but no API key is set, immediately fallback
+        if LLM_MODE == "hybrid" and not API_KEY:
+            return _original_ask_gemma(prompt, safe_mode=safe_mode)
+
         try:
-            return call_api_llm(prompt)
+            _prompt_to_send = build_safe_system_prompt(prompt) if safe_mode else prompt
+            return call_api_llm(_prompt_to_send)
         except Exception as e:
-            return f"API request failed: {e}"
+            if LLM_MODE == "hybrid":
+                print(f"  [⚠️ API Failed: {e}. Falling back to local Gemma...]")
+                return _original_ask_gemma(prompt, safe_mode=safe_mode)
+            else:
+                return f"API request failed: {e}"
 
     # Patch the function in the main module so all internal callers use it
     _main_module.ask_gemma = _api_ask_gemma
@@ -101,6 +114,8 @@ if LLM_MODE == "api":
 
 # ─── Resolve display name ────────────────────────────────────────────
 def _display_model():
+    if LLM_MODE == "hybrid":
+        return f"Hybrid ({API_PROVIDER} → {MODEL_NAME})"
     if LLM_MODE == "api":
         return f"{API_PROVIDER}/{API_MODEL}"
     return MODEL_NAME

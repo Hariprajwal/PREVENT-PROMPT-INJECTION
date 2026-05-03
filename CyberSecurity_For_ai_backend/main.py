@@ -102,49 +102,21 @@ def classify_intent(user_input):
         "what happened today", "current events", "recent news"
     ]
 
-    if any(kw in query_lower for kw in realtime_keywords):
-        print("  [Layer 1: Real-time keyword detected → web_search]")
+    search_keywords = [
+        "search", "research", "look up", "find info", "google", "duckduckgo"
+    ]
+
+    if any(kw in query_lower for kw in realtime_keywords) or any(kw in query_lower for kw in search_keywords):
+        print("  [Layer 1: Search/Real-time keyword detected → web_search]")
         return "web_search"
+        
     if any(kw in query_lower for kw in news_keywords):
         print("  [Layer 1: News keyword detected → news]")
         return "news"
 
-    # ── Layer 2: Gemma self-assessment ────────────────────────────
-    print("  [Layer 2: Asking Gemma if it knows the answer...]")
-    assess_prompt = f"""Can you answer this question accurately from your training data alone, without needing to search the internet?
-Question: "{user_input}"
-Reply with ONLY one word: YES, NO, or PARTIAL. Nothing else."""
-
-    assessment = ask_gemma(assess_prompt).strip().upper()
-    print(f"  [Gemma self-assessment: {assessment}]")
-
-    # Extract clean YES/NO/PARTIAL — Gemma 2B may ramble
-    if "YES" in assessment:
-        print("  [Layer 2: Gemma knows this → chat]")
-        return "chat"
-    if "PARTIAL" in assessment:
-        print("  [Layer 2: Gemma partially knows → web_search for better answer]")
-        return "web_search"
-    if "NO" in assessment:
-        print("  [Layer 2: Gemma doesn't know → web_search]")
-        return "web_search"
-
-    # ── Layer 3: Confidence score double-check ───────────────────
-    print("  [Layer 3: Unclear assessment, checking confidence...]")
-    confidence_prompt = f"""Answer this question briefly and rate your confidence from 0 to 10.
-Question: {user_input}
-End your response with exactly: CONFIDENCE: <number>"""
-
-    response = ask_gemma(confidence_prompt).strip()
-    score = extract_confidence(response)
-    print(f"  [Layer 3: Confidence score = {score}/10]")
-
-    if score >= 7:
-        return "chat"
-    elif score >= 4:
-        return "news"
-    else:
-        return "web_search"
+    # Default fallback: always return chat unless explicitly asked to search
+    print("  [Default: No search keywords found → chat]")
+    return "chat"
 
 
 # ─── Web Search ───────────────────────────────────────────────────────

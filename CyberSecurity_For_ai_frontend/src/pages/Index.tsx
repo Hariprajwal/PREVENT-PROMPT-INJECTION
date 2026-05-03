@@ -237,65 +237,45 @@ export default function Index() {
     setDistRunning(false);
   }
 
-  // ── Real Dynamic File Upload (OCR / PDF) ─────────────────────────
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // ── Malicious File Upload Simulation ────────────────────────────
+  async function runFileUploadAttack() {
     if (loading) return;
     setLoading(true);
-
-    const filename = file.name;
+    
+    const filename = "invoice_q4_final.pdf";
     const userMsg: ChatMessage = { id: newId(), role: "user", content: `📎 Uploaded file: ${filename}` };
     setMessages(prev => [...prev, userMsg]);
     
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("security_enabled", String(security));
-      
-      const entry = ATTACKER_IPS.find(a => a.value === attackerIpKey);
-      const ip = entry ? entry.ip : "127.0.0.1";
-      
-      const res = await fetch("http://localhost:8000/api/chat/upload", {
-        method: "POST",
-        headers: {
-          "X-Simulate-IP": ip ?? "127.0.0.1",
-        },
-        body: formData,
-      });
-      
-      if (!res.ok) throw new Error("File upload failed: " + res.statusText);
-      const data = await res.json();
-      
-      const meta: FirewallMeta = {
-        risk_score: data.risk_score,
-        attack_type: data.attack_type,
-        decision: data.decision,
-        confidence: data.confidence,
-        matched_patterns: data.matched_patterns ?? [],
-        normalized_input: data.normalized_input,
-        final_prompt: data.final_prompt,
-        output_filter_action: data.output_filter_action,
-        latency_ms: data.latency_ms,
-      };
-      
-      if (data.decision === "block") {
-        setNetworkAlert({ type: "file", ip: ip ?? "127.0.0.1", extra: `${filename} — malicious payload detected` });
-      }
-      
-      setMessages(prev => [...prev, { id: newId(), role: "assistant", content: data.response, meta: security ? meta : undefined }]);
-      setLogRefresh(k => k + 1);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Upload failed");
-      setMessages(prev => [...prev, { id: newId(), role: "assistant", content: "⚠️ File upload failed. Ensure the local backend is running." }]);
-    } finally {
-      setLoading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+    // Simulate processing delay
+    await new Promise(r => setTimeout(r, 1200));
+    
+    const meta: FirewallMeta = { 
+        risk_score: 1.0, 
+        attack_type: "PDF Embedded Malware", 
+        decision: "block", 
+        confidence: "high", 
+        matched_patterns: [{ label: "embedded javascript payload detected", type: "malware", weight: 1.0 }], 
+        normalized_input: `[File: ${filename}]`, 
+        final_prompt: "[BLOCKED — malware detected]", 
+        output_filter_action: "block", 
+        latency_ms: 1200 
+    };
+    
+    const aiMsg: ChatMessage = { 
+        id: newId(), 
+        role: "assistant", 
+        content: `⛔ **Malicious File Blocked**\n\n**File:** ${filename}\n**Threat:** Embedded JavaScript (PDF Malware)\n\nDeep content scan detected malicious payloads hidden within the file. The file has been quarantined.`, 
+        meta: security ? meta : undefined 
+    };
+    
+    setMessages(prev => [...prev, aiMsg]);
+    
+    if (security) {
+        setNetworkAlert({ type: "file" as NetworkAlertType, ip: "127.0.0.1", extra: `${filename} — malicious payload detected` });
     }
-  }
-
-  function triggerFileUpload() {
-    fileInputRef.current?.click();
+    
+    setLoading(false);
+    setLogRefresh(k => k + 1);
   }
 
   // ── Plugin/API Exploit Simulation ────────────────────────────────
@@ -496,7 +476,7 @@ export default function Index() {
               <div className="flex gap-2 flex-wrap">
                 <Button size="sm" variant="outline" disabled={botRunning}  className="text-xs font-mono h-7 border-red-500/40    text-red-400    hover:bg-red-500/10    gap-1" onClick={runBotAttack}><Bot         className="w-3 h-3" />{botRunning  ? "Attacking…" : "🤖 Bot"}</Button>
                 <Button size="sm" variant="outline" disabled={distRunning} className="text-xs font-mono h-7 border-rose-500/40   text-rose-400   hover:bg-rose-500/10   gap-1" onClick={runDistributedAttack}><Globe     className="w-3 h-3" />{distRunning ? "Flooding…"  : "🌐 Distributed"}</Button>
-                <Button size="sm" variant="outline" disabled={loading}     className="text-xs font-mono h-7 border-red-700/40    text-red-300    hover:bg-red-700/10    gap-1" onClick={triggerFileUpload}>File</Button>
+                <Button size="sm" variant="outline" disabled={loading}     className="text-xs font-mono h-7 border-red-700/40    text-red-300    hover:bg-red-700/10    gap-1" onClick={runFileUploadAttack}>File</Button>
                 <Button size="sm" variant="outline" disabled={loading}     className="text-xs font-mono h-7 border-teal-500/40   text-teal-400   hover:bg-teal-500/10   gap-1" onClick={runApiExploit}><Plug        className="w-3 h-3" />🔌 API</Button>
                 <Button size="sm" variant="outline" disabled={loading}     className="text-xs font-mono h-7 border-green-500/40  text-green-400  hover:bg-green-500/10  gap-1" onClick={runJsonAttack}><Braces      className="w-3 h-3" />🧬 JSON</Button>
                 <Button size="sm" variant="outline" disabled={loading}     className="text-xs font-mono h-7 border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/10 gap-1" onClick={runTokenHijack}><Key        className="w-3 h-3" />🔑 Hijack</Button>
@@ -597,8 +577,7 @@ export default function Index() {
 
             <div className="border-t border-border p-4">
               <div className="flex gap-2 items-end">
-                <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileUpload} />
-                <Button onClick={triggerFileUpload} disabled={loading} variant="outline" className="h-[52px] w-[52px] shrink-0 border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground group" title="Upload File / PDF">
+                <Button onClick={runFileUploadAttack} disabled={loading} variant="outline" className="h-[52px] w-[52px] shrink-0 border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground group" title="Upload Malicious File Simulation">
                   <Paperclip className="w-5 h-5 transition-transform group-hover:scale-110" />
                 </Button>
                 <Textarea

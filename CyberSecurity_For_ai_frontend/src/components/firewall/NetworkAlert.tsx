@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Shield, Wifi, WifiOff, AlertOctagon, Globe, FileWarning, Lock, Plug, MapPin, Key, BarChart3 } from "lucide-react";
+import { Shield, Wifi, WifiOff, AlertOctagon, Globe, FileWarning, Lock, Plug, MapPin, Key, BarChart3, Braces } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type NetworkAlertType = "tor" | "bot" | "proxy" | "distributed" | "file" | "vpn" | "api" | "geo" | "hijack" | "flood" | null;
+export type NetworkAlertType = "tor" | "bot" | "proxy" | "distributed" | "file" | "vpn" | "api" | "geo" | "hijack" | "flood" | "json" | null;
 
 interface NetworkAlertProps {
   type: NetworkAlertType;
@@ -120,6 +120,16 @@ const ALERT_CONFIG: Record<NonNullable<NetworkAlertType>, {
     dotColor: "bg-yellow-400",
     glow: "shadow-[0_0_20px_rgba(234,179,8,0.35)]",
     tag: "TOKEN FLOOD",
+  },
+  json: {
+    icon: Braces,
+    label: "JSON Injection / Prototype Pollution",
+    detail: "Malicious JSON payload intercepted — __proto__ pollution + embedded prompt injection",
+    color: "from-emerald-900/80 to-green-900/60 border-emerald-500/60",
+    badgeColor: "bg-emerald-600/30 border-emerald-400/60 text-emerald-200",
+    dotColor: "bg-emerald-400",
+    glow: "shadow-[0_0_20px_rgba(16,185,129,0.35)]",
+    tag: "JSON ATTACK",
   },
 };
 

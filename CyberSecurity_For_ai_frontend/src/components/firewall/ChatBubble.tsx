@@ -1,5 +1,5 @@
 import ReactMarkdown from "react-markdown";
-import { Shield, ShieldAlert, ShieldCheck, ShieldX, User, WifiOff, AlertOctagon } from "lucide-react";
+import { Shield, ShieldAlert, ShieldCheck, ShieldX, User, WifiOff, AlertOctagon, Globe, FileWarning, Lock, Plug, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/firewall-types";
 import { Badge } from "@/components/ui/badge";
@@ -8,17 +8,23 @@ const decisionStyle: Record<string, { icon: React.ElementType; className: string
   allow:    { icon: ShieldCheck, className: "text-primary border-primary/40 bg-primary/10", label: "Allowed" },
   sanitize: { icon: ShieldAlert, className: "text-warning border-warning/40 bg-warning/10", label: "Sanitized" },
   block:    { icon: ShieldX,     className: "text-destructive border-destructive/40 bg-destructive/10", label: "Blocked" },
+  restrict: { icon: ShieldAlert, className: "text-amber-400 border-amber-400/40 bg-amber-400/10", label: "Restricted" },
 };
 
 const networkBadge: Record<string, { label: string; className: string; icon: React.ElementType }> = {
-  "TOR Anonymity Abuse":           { label: "TOR NODE", className: "text-purple-300 border-purple-400/60 bg-purple-600/20", icon: WifiOff },
-  "Prompt Injection (Bot Attack)": { label: "BOT FLOOD", className: "text-red-300 border-red-400/60 bg-red-600/20", icon: AlertOctagon },
+  "TOR Anonymity Abuse":              { label: "TOR NODE",          className: "text-purple-300 border-purple-400/60 bg-purple-600/20",  icon: WifiOff },
+  "Known Proxy Attack":               { label: "PROXY ATTACK",      className: "text-orange-300 border-orange-400/60 bg-orange-600/20",  icon: Wifi },
+  "Prompt Injection (Bot Attack)":    { label: "BOT FLOOD",         className: "text-red-300 border-red-400/60 bg-red-600/20",           icon: AlertOctagon },
+  "Multi-IP Distributed Attack":      { label: "DISTRIBUTED FLOOD", className: "text-rose-300 border-rose-400/60 bg-rose-600/20",        icon: Globe },
+  "Malicious File Upload":            { label: "MALICIOUS FILE",    className: "text-red-200 border-red-500/60 bg-red-800/30",           icon: FileWarning },
+  "VPN Policy Evasion":               { label: "VPN EVASION",       className: "text-amber-300 border-amber-400/60 bg-amber-600/20",     icon: Lock },
+  "Plugin/API Exploit":               { label: "API EXPLOIT",       className: "text-teal-300 border-teal-400/60 bg-teal-600/20",        icon: Plug },
 };
 
 export function ChatBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === "user";
   const meta = msg.meta;
-  const ds = meta ? decisionStyle[meta.decision] : null;
+  const ds = meta ? (decisionStyle[meta.decision] ?? decisionStyle["block"]) : null;
   const Icon = ds?.icon ?? Shield;
   const netKey = meta?.attack_type ? networkBadge[meta.attack_type] : null;
 
@@ -37,7 +43,9 @@ export function ChatBubble({ msg }: { msg: ChatMessage }) {
               ? "bg-secondary border-border rounded-br-sm"
               : meta?.decision === "block" && netKey
                 ? "bg-card border-destructive/30 rounded-bl-sm"
-                : "bg-card border-border rounded-bl-sm",
+                : meta?.decision === "restrict"
+                  ? "bg-card border-amber-500/30 rounded-bl-sm"
+                  : "bg-card border-border rounded-bl-sm",
           )}
         >
           {isUser ? (
@@ -56,7 +64,7 @@ export function ChatBubble({ msg }: { msg: ChatMessage }) {
             <Badge variant="outline" className="font-mono text-muted-foreground">
               risk {(meta.risk_score * 100).toFixed(0)}%
             </Badge>
-            {/* Special network attack badge */}
+            {/* Network attack badge */}
             {netKey && (() => {
               const NetIcon = netKey.icon;
               return (
@@ -65,10 +73,10 @@ export function ChatBubble({ msg }: { msg: ChatMessage }) {
                 </Badge>
               );
             })()}
-            {/* Regular attack type (only when not a network badge) */}
+            {/* Regular attack type (only when no network badge) */}
             {meta.attack_type && !netKey && (
               <Badge variant="outline" className="font-mono text-accent border-accent/40 bg-accent/5">
-                {meta.attack_type.replace("_", " ")}
+                {meta.attack_type.replace(/_/g, " ")}
               </Badge>
             )}
             <span className="text-muted-foreground font-mono">{meta.latency_ms}ms</span>

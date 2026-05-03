@@ -31,6 +31,21 @@ import requests
 import time
 import threading
 
+SUPABASE_URL = "https://nsyyulvaedkujuxuguaa.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zeXl1bHZhZWRrdWp1eHVndWFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MTM4MjQsImV4cCI6MjA5MzI4OTgyNH0.SNQqqEWqF_d7SkAgHJVfxeTLoUBG3PS7OvQ98mHcdrY"
+
+def log_to_supabase(log_data):
+    try:
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal"
+        }
+        requests.post(f"{SUPABASE_URL}/rest/v1/firewall_logs", json=log_data, headers=headers, timeout=3)
+    except Exception as e:
+        pass
+
 # ─── Networking Check ───────────────────────────────────────────────────
 from networking import check_network_security
 
@@ -202,36 +217,42 @@ async def chat_endpoint(req: ChatRequest, request: Request):
             security_level=SECURITY_LEVEL,
         )
         
-        # Log attack directly to Django
+        # Log attack directly to Supabase
         log_data = {
+            "session_id": req.session_id or "anonymous",
             "user_input": req.message,
-            "risk_score": 100.0,
+            "security_enabled": req.security_enabled,
             "attack_type": attack_type,
+            "risk_score": 1.0,
             "decision": block_decision,
+            "matched_patterns": [],
+            "normalized_input": req.message or "",
+            "final_prompt": "[BLOCKED]",
+            "llm_response": f"[Intercepted] {attack_type}",
+            "output_filter_action": "block",
             "latency_ms": 0,
-            "ip": client_ip,
-            "device": "AI Firewall Chatbot"
         }
-        try:
-            threading.Thread(target=lambda: requests.post("http://localhost:5654/api/chatbot/log/", json=log_data, timeout=2)).start()
-        except: pass
+        threading.Thread(target=log_to_supabase, args=(log_data,)).start()
         return response_obj
 
     result = smart_agent_api(req.message.strip(), security_enabled=req.security_enabled)
 
-    # Log standard interaction to Django
+    # Log standard interaction to Supabase
     log_data = {
+        "session_id": req.session_id or "anonymous",
         "user_input": req.message,
-        "risk_score": result["risk_score"],
+        "security_enabled": req.security_enabled,
         "attack_type": result.get("attack_type"),
-        "decision": result["decision"],
-        "latency_ms": result["latency_ms"],
-        "ip": client_ip,
-        "device": "AI Firewall Chatbot"
+        "risk_score": result.get("risk_score", 0.0),
+        "decision": result.get("decision", "allow"),
+        "matched_patterns": result.get("matched_patterns", []),
+        "normalized_input": result.get("normalized_input", req.message),
+        "final_prompt": result.get("normalized_input", req.message),
+        "llm_response": result.get("response", ""),
+        "output_filter_action": result.get("output_filter_action", "none"),
+        "latency_ms": result.get("latency_ms", 0),
     }
-    try:
-        threading.Thread(target=lambda: requests.post("http://localhost:5654/api/chatbot/log/", json=log_data, timeout=2)).start()
-    except: pass
+    threading.Thread(target=log_to_supabase, args=(log_data,)).start()
 
     # Map confidence from matched_patterns count
     patterns = result.get("matched_patterns", [])
@@ -345,36 +366,41 @@ async def upload_endpoint(
             security_level=SECURITY_LEVEL,
         )
         log_data = {
+            "session_id": session_id or "anonymous",
             "user_input": f"[File: {filename}]",
-            "risk_score": 100.0,
+            "security_enabled": security_enabled,
             "attack_type": attack_type,
+            "risk_score": 1.0,
             "decision": block_decision,
+            "matched_patterns": [],
+            "normalized_input": f"[File: {filename}]",
+            "final_prompt": "[BLOCKED]",
+            "llm_response": f"[Intercepted] {attack_type}",
+            "output_filter_action": "block",
             "latency_ms": 0,
-            "ip": client_ip,
-            "device": "AI Firewall Chatbot"
         }
-        try:
-            threading.Thread(target=lambda: requests.post("http://localhost:5654/api/chatbot/log/", json=log_data, timeout=2)).start()
-        except: pass
+        threading.Thread(target=log_to_supabase, args=(log_data,)).start()
         return response_obj
 
-    # Run through the same security pipeline
     result = smart_agent_api(combined_input, security_enabled=security_enabled)
 
-    # Log interaction to Django
+    # Log interaction to Supabase
     latency = int((time.time() - start) * 1000)
     log_data = {
+        "session_id": session_id or "anonymous",
         "user_input": f"[File: {filename}]",
-        "risk_score": result["risk_score"],
+        "security_enabled": security_enabled,
         "attack_type": result.get("attack_type"),
-        "decision": result["decision"],
-        "latency_ms": latency,
-        "ip": client_ip,
-        "device": "AI Firewall Chatbot"
+        "risk_score": result.get("risk_score", 0.0),
+        "decision": result.get("decision", "allow"),
+        "matched_patterns": result.get("matched_patterns", []),
+        "normalized_input": result.get("normalized_input", ""),
+        "final_prompt": result.get("normalized_input", ""),
+        "llm_response": result.get("response", ""),
+        "output_filter_action": result.get("output_filter_action", "none"),
+        "latency_ms": result.get("latency_ms", 0),
     }
-    try:
-        threading.Thread(target=lambda: requests.post("http://localhost:5654/api/chatbot/log/", json=log_data, timeout=2)).start()
-    except: pass
+    threading.Thread(target=log_to_supabase, args=(log_data,)).start()
 
     patterns = result.get("matched_patterns", [])
     if len(patterns) >= 2:

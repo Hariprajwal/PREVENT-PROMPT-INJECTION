@@ -1,0 +1,28 @@
+# Root .gitignore for AI Firewall Project
+
+# Environment files
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Dependency directories
+**/node_modules/
+**/__pycache__/
+**/*.pyc
+**/venv/
+**/env/
+
+# Build outputs
+**/dist/
+**/build/
+**/.next/
+**/out/
+
+# IDE files
+**/.vscode/
+**/.idea/
+**/.DS_Store
+
+# Logs
+**/logs/
+**/*.log

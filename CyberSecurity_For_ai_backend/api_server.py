@@ -31,8 +31,8 @@ import requests
 import time
 import threading
 
-SUPABASE_URL = "https://nsyyulvaedkujuxuguaa.supabase.co"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5zeXl1bHZhZWRrdWp1eHVndWFhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MTM4MjQsImV4cCI6MjA5MzI4OTgyNH0.SNQqqEWqF_d7SkAgHJVfxeTLoUBG3PS7OvQ98mHcdrY"
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
 
 def log_to_supabase(log_data):
     try:

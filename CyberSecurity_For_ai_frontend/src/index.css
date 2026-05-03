@@ -1,0 +1,89 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Cyber-security dark theme */
+    --background: 222 28% 7%;
+    --foreground: 210 30% 96%;
+
+    --card: 222 26% 10%;
+    --card-foreground: 210 30% 96%;
+
+    --popover: 222 26% 10%;
+    --popover-foreground: 210 30% 96%;
+
+    --primary: 158 95% 52%;          /* neon green */
+    --primary-foreground: 222 28% 7%;
+    --primary-glow: 158 95% 60%;
+
+    --secondary: 220 22% 14%;
+    --secondary-foreground: 210 30% 96%;
+
+    --muted: 220 22% 14%;
+    --muted-foreground: 215 16% 60%;
+
+    --accent: 199 95% 60%;           /* cyber blue */
+    --accent-foreground: 222 28% 7%;
+
+    --destructive: 0 84% 62%;
+    --destructive-foreground: 210 30% 96%;
+
+    --warning: 38 95% 60%;
+    --warning-foreground: 222 28% 7%;
+
+    --border: 220 20% 18%;
+    --input: 220 20% 16%;
+    --ring: 158 95% 52%;
+
+    --radius: 0.75rem;
+
+    --gradient-primary: linear-gradient(135deg, hsl(158 95% 52%), hsl(199 95% 60%));
+    --gradient-danger: linear-gradient(135deg, hsl(0 84% 62%), hsl(38 95% 60%));
+    --gradient-bg: radial-gradient(ellipse at top, hsl(222 30% 12%), hsl(222 28% 6%));
+
+    --shadow-glow: 0 0 24px -4px hsl(158 95% 52% / 0.4);
+    --shadow-danger: 0 0 24px -4px hsl(0 84% 62% / 0.5);
+
+    --sidebar-background: 222 28% 7%;
+    --sidebar-foreground: 210 30% 96%;
+    --sidebar-primary: 158 95% 52%;
+    --sidebar-primary-foreground: 222 28% 7%;
+    --sidebar-accent: 220 22% 14%;
+    --sidebar-accent-foreground: 210 30% 96%;
+    --sidebar-border: 220 20% 18%;
+    --sidebar-ring: 158 95% 52%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-background text-foreground;
+    background-image: var(--gradient-bg);
+    font-feature-settings: "ss01", "cv11";
+  }
+}
+
+@layer utilities {
+  .text-glow { text-shadow: 0 0 20px hsl(var(--primary) / 0.6); }
+  .shadow-glow { box-shadow: var(--shadow-glow); }
+  .shadow-danger { box-shadow: var(--shadow-danger); }
+  .bg-grid {
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.4) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.4) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+  .scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 4px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.5); }
+  50% { box-shadow: 0 0 16px 4px hsl(var(--primary) / 0.3); }
+}
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }

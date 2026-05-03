@@ -1,0 +1,59 @@
+# Environments
+venv*/
+.venv/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# React / Node (for monitoring_ui)
+monitoring_ui/node_modules/
+monitoring_ui/dist/
+monitoring_ui/dist-ssr/
+monitoring_ui/*.local
+monitoring_ui/.env*
+monitoring_ui/.env.development.local
+monitoring_ui/.env.test.local
+monitoring_ui/.env.production.local
+monitoring_ui/.env.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

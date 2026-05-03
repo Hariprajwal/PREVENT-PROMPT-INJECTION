@@ -24,6 +24,10 @@ from pydantic import BaseModel
 from typing import Optional
 import requests
 import time
+import threading
+
+# ─── Networking Check ───────────────────────────────────────────────────
+from networking import check_network_security
 
 # ─── Configuration from .env ──────────────────────────────────────────
 LLM_MODE = os.getenv("LLM_MODE", "gemma").strip().lower()
@@ -138,8 +142,10 @@ class ChatResponse(BaseModel):
 
 # ─── Endpoints ────────────────────────────────────────────────────────
 
+from fastapi import FastAPI, File, UploadFile, Form, Request
+
 @app.post("/api/chat", response_model=ChatResponse)
-async def chat_endpoint(req: ChatRequest):
+async def chat_endpoint(req: ChatRequest, request: Request):
     """Process a chat message through the security layer and the active LLM."""
     if not req.message or not req.message.strip() or len(req.message) > 4000:
         return ChatResponse(
@@ -157,7 +163,59 @@ async def chat_endpoint(req: ChatRequest):
             security_level=SECURITY_LEVEL,
         )
 
+    # Extract client IP (Support simulated header for testing)
+    client_ip = request.headers.get("X-Simulate-IP", request.client.host)
+
+    # ── Network Security Check (Rate Limit / TOR) ───────────
+    is_allowed, block_decision, attack_type = check_network_security(client_ip)
+    
+    if not is_allowed:
+        # Create block response
+        response_obj = ChatResponse(
+            response=f"⛔ Request Blocked by Network Defense: {attack_type}",
+            risk_score=100.0,
+            attack_type=attack_type,
+            decision=block_decision,
+            confidence="high",
+            matched_patterns=[],
+            normalized_input=req.message or "",
+            final_prompt="",
+            output_filter_action="block",
+            latency_ms=0,
+            model=_display_model(),
+            security_level=SECURITY_LEVEL,
+        )
+        
+        # Log attack directly to Django
+        log_data = {
+            "user_input": req.message,
+            "risk_score": 100.0,
+            "attack_type": attack_type,
+            "decision": block_decision,
+            "latency_ms": 0,
+            "ip": client_ip,
+            "device": "AI Firewall Chatbot"
+        }
+        try:
+            threading.Thread(target=lambda: requests.post("http://localhost:5654/api/chatbot/log/", json=log_data, timeout=2)).start()
+        except: pass
+        return response_obj
+
     result = smart_agent_api(req.message.strip(), security_enabled=req.security_enabled)
+
+    # Log standard interaction to Django
+    log_data = {
+        "user_input": req.message,
+        "risk_score": result["risk_score"],
+        "attack_type": result.get("attack_type"),
+        "decision": result["decision"],
+        "latency_ms": result["latency_ms"],
+        "ip": client_ip,
+        "device": "AI Firewall Chatbot"
+    }
+    try:
+        threading.Thread(target=lambda: requests.post("http://localhost:5654/api/chatbot/log/", json=log_data, timeout=2)).start()
+    except: pass
 
     # Map confidence from matched_patterns count
     patterns = result.get("matched_patterns", [])
@@ -186,6 +244,7 @@ async def chat_endpoint(req: ChatRequest):
 
 @app.post("/api/chat/upload", response_model=ChatResponse)
 async def upload_endpoint(
+    request: Request,
     file: UploadFile = File(...),
     message: str = Form(""),
     security_enabled: bool = Form(True),
@@ -247,8 +306,58 @@ async def upload_endpoint(
     else:
         combined_input = f"[Extracted from {filename}]:\n{extracted_text}"
 
+    # Extract client IP
+    client_ip = request.headers.get("X-Simulate-IP", request.client.host)
+
+    # ── Network Security Check (Rate Limit / TOR) ───────────
+    is_allowed, block_decision, attack_type = check_network_security(client_ip)
+    
+    if not is_allowed:
+        response_obj = ChatResponse(
+            response=f"⛔ Request Blocked by Network Defense: {attack_type}",
+            risk_score=100.0,
+            attack_type=attack_type,
+            decision=block_decision,
+            confidence="high",
+            matched_patterns=[],
+            normalized_input=f"[File: {filename}]",
+            final_prompt="",
+            output_filter_action="block",
+            latency_ms=0,
+            model=_display_model(),
+            security_level=SECURITY_LEVEL,
+        )
+        log_data = {
+            "user_input": f"[File: {filename}]",
+            "risk_score": 100.0,
+            "attack_type": attack_type,
+            "decision": block_decision,
+            "latency_ms": 0,
+            "ip": client_ip,
+            "device": "AI Firewall Chatbot"
+        }
+        try:
+            threading.Thread(target=lambda: requests.post("http://localhost:5654/api/chatbot/log/", json=log_data, timeout=2)).start()
+        except: pass
+        return response_obj
+
     # Run through the same security pipeline
     result = smart_agent_api(combined_input, security_enabled=security_enabled)
+
+    # Log interaction to Django
+    latency = int((time.time() - start) * 1000)
+    log_data = {
+        "user_input": f"[File: {filename}]",
+        "risk_score": result["risk_score"],
+        "attack_type": result.get("attack_type"),
+        "decision": result["decision"],
+        "latency_ms": latency,
+        "ip": client_ip,
+        "device": "AI Firewall Chatbot"
+    }
+    try:
+        threading.Thread(target=lambda: requests.post("http://localhost:5654/api/chatbot/log/", json=log_data, timeout=2)).start()
+    except: pass
 
     patterns = result.get("matched_patterns", [])
     if len(patterns) >= 2:

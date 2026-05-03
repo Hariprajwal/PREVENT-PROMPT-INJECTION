@@ -1,5 +1,5 @@
 import ReactMarkdown from "react-markdown";
-import { Shield, ShieldAlert, ShieldCheck, ShieldX, User } from "lucide-react";
+import { Shield, ShieldAlert, ShieldCheck, ShieldX, User, WifiOff, AlertOctagon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/firewall-types";
 import { Badge } from "@/components/ui/badge";
@@ -10,11 +10,17 @@ const decisionStyle: Record<string, { icon: React.ElementType; className: string
   block:    { icon: ShieldX,     className: "text-destructive border-destructive/40 bg-destructive/10", label: "Blocked" },
 };
 
+const networkBadge: Record<string, { label: string; className: string; icon: React.ElementType }> = {
+  "TOR Anonymity Abuse":           { label: "TOR NODE", className: "text-purple-300 border-purple-400/60 bg-purple-600/20", icon: WifiOff },
+  "Prompt Injection (Bot Attack)": { label: "BOT FLOOD", className: "text-red-300 border-red-400/60 bg-red-600/20", icon: AlertOctagon },
+};
+
 export function ChatBubble({ msg }: { msg: ChatMessage }) {
   const isUser = msg.role === "user";
   const meta = msg.meta;
   const ds = meta ? decisionStyle[meta.decision] : null;
   const Icon = ds?.icon ?? Shield;
+  const netKey = meta?.attack_type ? networkBadge[meta.attack_type] : null;
 
   return (
     <div className={cn("flex gap-3 group", isUser ? "justify-end" : "justify-start")}>
@@ -29,7 +35,9 @@ export function ChatBubble({ msg }: { msg: ChatMessage }) {
             "rounded-2xl px-4 py-2.5 text-sm leading-relaxed border",
             isUser
               ? "bg-secondary border-border rounded-br-sm"
-              : "bg-card border-border rounded-bl-sm",
+              : meta?.decision === "block" && netKey
+                ? "bg-card border-destructive/30 rounded-bl-sm"
+                : "bg-card border-border rounded-bl-sm",
           )}
         >
           {isUser ? (
@@ -48,7 +56,17 @@ export function ChatBubble({ msg }: { msg: ChatMessage }) {
             <Badge variant="outline" className="font-mono text-muted-foreground">
               risk {(meta.risk_score * 100).toFixed(0)}%
             </Badge>
-            {meta.attack_type && (
+            {/* Special network attack badge */}
+            {netKey && (() => {
+              const NetIcon = netKey.icon;
+              return (
+                <Badge variant="outline" className={cn("gap-1 font-mono font-bold", netKey.className)}>
+                  <NetIcon className="w-3 h-3" /> {netKey.label}
+                </Badge>
+              );
+            })()}
+            {/* Regular attack type (only when not a network badge) */}
+            {meta.attack_type && !netKey && (
               <Badge variant="outline" className="font-mono text-accent border-accent/40 bg-accent/5">
                 {meta.attack_type.replace("_", " ")}
               </Badge>

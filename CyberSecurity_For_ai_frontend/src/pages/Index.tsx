@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Shield, ShieldOff, Send, Sparkles, Activity, Zap, AlertTriangle, Bot, WifiOff, Globe, FileWarning, Plug, Lock, MapPin, Key, BarChart3, Braces } from "lucide-react";
+import { Shield, ShieldOff, Send, Sparkles, Activity, Zap, AlertTriangle, Bot, WifiOff, Globe, FileWarning, Plug, Lock, MapPin, Key, BarChart3, Braces, Paperclip } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -535,6 +535,9 @@ export default function Index() {
 
             <div className="border-t border-border p-4">
               <div className="flex gap-2 items-end">
+                <Button onClick={runFileUpload} disabled={loading} variant="outline" className="h-[52px] w-[52px] shrink-0 border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground group" title="Upload File / PDF">
+                  <Paperclip className="w-5 h-5 transition-transform group-hover:scale-110" />
+                </Button>
                 <Textarea
                   value={input}
                   onChange={(e) => setInput(e.target.value)}

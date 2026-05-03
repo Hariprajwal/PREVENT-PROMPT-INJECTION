@@ -11,6 +11,7 @@ import re
 import json
 import os
 import unicodedata
+import urllib.parse
 
 # ─── Configuration ───────────────────────────────────────────────────
 SECURITY_LEVEL = "fast"  # "fast" | "standard" | "full"
@@ -22,6 +23,29 @@ SIMILARITY_THRESHOLD = 0.82  # For semantic similarity (full mode)
 CUMULATIVE_THREAT_THRESHOLD = 3  # Multi-turn: block after N suspicious turns
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 BAD_PROMPTS_PATH = os.path.join(os.path.dirname(__file__), "bad_prompts.json")
+
+# ─── Token Budget ─────────────────────────────────────────────────────
+TOKEN_BUDGET_MAX = 4096   # Estimated max tokens (4 chars ≈ 1 token)
+TOKEN_BUDGET_CHAR_RATIO = 4
+
+# ─── DNS Allowlist for outbound URL filtering ─────────────────────────
+DNS_ALLOWLIST = {
+    "google.com", "openai.com", "supabase.com", "api.example.com",
+    "bing.com", "duckduckgo.com", "wikipedia.org", "github.com",
+    "stackoverflow.com", "arxiv.org", "huggingface.co",
+}
+
+# ─── Output data-leak patterns ────────────────────────────────────────
+OUTPUT_LEAK_PATTERNS = [
+    re.compile(r'sk-[A-Za-z0-9]{20,}', re.IGNORECASE),          # OpenAI API key
+    re.compile(r'AIza[A-Za-z0-9\-_]{35}', re.IGNORECASE),       # Google API key
+    re.compile(r'Bearer\s+[A-Za-z0-9\-_\.]{20,}'),              # Bearer token
+    re.compile(r'-----BEGIN (RSA |EC )?PRIVATE KEY-----'),       # Private key
+    re.compile(r'password\s*[:=]\s*[\"\']?\S{6,}', re.IGNORECASE), # Password field
+    re.compile(r'secret\s*[:=]\s*[\"\']?\S{6,}', re.IGNORECASE),   # Secret field
+    re.compile(r'SYSTEM PROMPT[:]*\s', re.IGNORECASE),           # System prompt leak
+    re.compile(r'my instructions are', re.IGNORECASE),           # Instruction leak
+]
 
 # ─── Lazy-loaded globals ─────────────────────────────────────────────
 _embedding_model = None
@@ -387,6 +411,177 @@ def scan_web_content(text):
 
 
 # ═════════════════════════════════════════════════════════════════════
+# 7b. JSON INJECTION SCANNER
+# ═════════════════════════════════════════════════════════════════════
+
+def _flatten_json_values(obj, prefix="") -> list:
+    """
+    Recursively walk a JSON object and yield (field_path, string_value) pairs.
+    Also yields keys themselves so prototype-pollution key names are checked.
+    """
+    items = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            path = f"{prefix}.{k}" if prefix else k
+            # Check the KEY itself for prototype pollution
+            items.append((f"[key] {path}", str(k)))
+            items.extend(_flatten_json_values(v, path))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            items.extend(_flatten_json_values(v, f"{prefix}[{i}]"))
+    elif isinstance(obj, str):
+        items.append((prefix, obj))
+    return items
+
+
+# Keys that signal prototype/class pollution attacks
+_POLLUTION_KEYS = re.compile(
+    r'^(__proto__|constructor|prototype|__defineGetter__|__defineSetter__)$',
+    re.IGNORECASE
+)
+
+def scan_json_payload(raw_input: str) -> dict:
+    """
+    Scan a JSON string (or a string that looks like JSON) for injection threats.
+    
+    Detects:
+    - Prototype pollution keys (__proto__, constructor, prototype)
+    - Prompt injection hidden in string values
+    - Suspicious nested instruction fields
+    
+    Returns:
+        {
+          "safe": bool,
+          "flagged_fields": list of {field, reason, category},
+          "reason": str,
+          "category": str
+        }
+    """
+    # Try to parse as JSON
+    try:
+        obj = json.loads(raw_input.strip())
+    except (json.JSONDecodeError, ValueError):
+        # Not valid JSON — pass to normal text scanner
+        return {"safe": True, "flagged_fields": [], "reason": "", "category": ""}
+
+    flagged = []
+    flat = _flatten_json_values(obj)
+
+    for field_path, value in flat:
+        # 1. Prototype pollution key check
+        key_name = field_path.replace("[key] ", "").split(".")[-1].strip()
+        if _POLLUTION_KEYS.match(key_name):
+            flagged.append({
+                "field": field_path,
+                "reason": f"Prototype pollution key detected: '{key_name}'",
+                "category": "json_prototype_pollution"
+            })
+            continue
+
+        # 2. Prompt injection in value
+        is_malicious, category = check_rules(value)
+        if is_malicious:
+            desc = CATEGORY_DESCRIPTIONS.get(category, "Injection pattern")
+            flagged.append({
+                "field": field_path,
+                "reason": f"{desc} (in field '{field_path}')",
+                "category": category
+            })
+
+    if flagged:
+        reasons = "; ".join(f["reason"] for f in flagged[:3])
+        return {
+            "safe": False,
+            "flagged_fields": flagged,
+            "reason": f"JSON Injection detected in {len(flagged)} field(s): {reasons}",
+            "category": flagged[0]["category"]
+        }
+
+    return {"safe": True, "flagged_fields": [], "reason": "", "category": ""}
+
+
+# ═════════════════════════════════════════════════════════════════════
+# 7c. TOKEN BUDGET ENFORCEMENT
+# ═════════════════════════════════════════════════════════════════════
+
+def check_token_budget(text: str) -> dict:
+    """
+    Estimate token count and block if over budget.
+    Uses the 4-chars-per-token heuristic (conservative).
+    
+    Returns: {"safe": bool, "estimated_tokens": int, "reason": str}
+    """
+    estimated = len(text) // TOKEN_BUDGET_CHAR_RATIO
+    if estimated > TOKEN_BUDGET_MAX:
+        return {
+            "safe": False,
+            "estimated_tokens": estimated,
+            "reason": f"Prompt Flood / Token Exhaustion: ~{estimated:,} tokens submitted (limit: {TOKEN_BUDGET_MAX:,})"
+        }
+    return {"safe": True, "estimated_tokens": estimated, "reason": ""}
+
+
+# ═════════════════════════════════════════════════════════════════════
+# 7d. DNS OUTBOUND URL FILTER
+# ═════════════════════════════════════════════════════════════════════
+
+_URL_RE = re.compile(
+    r'(?:https?://)?([a-z0-9][a-z0-9\-]*(?:\.[a-z0-9\-]+)*\.[a-z]{2,})',
+    re.IGNORECASE
+)
+
+def _root_domain(hostname: str) -> str:
+    """Extract root domain (e.g. 'sub.evil.com' -> 'evil.com')."""
+    parts = hostname.lower().split(".")
+    if len(parts) >= 2:
+        return ".".join(parts[-2:])
+    return hostname.lower()
+
+def check_outbound_urls(text: str) -> dict:
+    """
+    Extract all URLs/domains from text and check against the allowlist.
+    Blocks requests that try to reach unknown external domains.
+    
+    Returns: {"safe": bool, "blocked_domains": list, "reason": str}
+    """
+    found = _URL_RE.findall(text)
+    blocked = []
+    for hostname in found:
+        root = _root_domain(hostname)
+        if root not in DNS_ALLOWLIST:
+            blocked.append(root)
+
+    if blocked:
+        unique_blocked = list(dict.fromkeys(blocked))  # deduplicate, preserve order
+        return {
+            "safe": False,
+            "blocked_domains": unique_blocked,
+            "reason": f"Plugin/API Exploit: outbound call to non-allowlisted domain(s): {', '.join(unique_blocked[:3])}"
+        }
+    return {"safe": True, "blocked_domains": [], "reason": ""}
+
+
+# ═════════════════════════════════════════════════════════════════════
+# 7e. OUTPUT DATA-LEAK SCANNER (runs in ALL modes, not just full)
+# ═════════════════════════════════════════════════════════════════════
+
+def scan_output_for_leaks(response: str) -> dict:
+    """
+    Lightweight regex scan on the LLM response to catch data leaks.
+    Runs in ALL security levels (fast/standard/full).
+    
+    Returns: {"safe": bool, "reason": str}
+    """
+    for pattern in OUTPUT_LEAK_PATTERNS:
+        if pattern.search(response):
+            return {
+                "safe": False,
+                "reason": f"Output filter: potential data leak detected in LLM response (pattern: {pattern.pattern[:40]})"
+            }
+    return {"safe": True, "reason": ""}
+
+
+# ═════════════════════════════════════════════════════════════════════
 # 7. SAFE SYSTEM PROMPT (Prompt Instruction & Formatting)
 # ═════════════════════════════════════════════════════════════════════
 
@@ -412,6 +607,15 @@ def security_check_input(query, history=None, ask_gemma_fn=None):
     """
     Main input security pipeline. Runs layers based on SECURITY_LEVEL.
 
+    Layers (all modes):
+      1. Token budget enforcement  (prompt flood)
+      2. JSON injection scan       (if query looks like JSON)
+      3. DNS outbound URL filter   (API/plugin exploit)
+      4. Regex rule engine         (13 attack categories)
+      5. Multi-turn escalation     (cumulative suspicious score)
+      6. Gemma LLM judge           (standard/full mode)
+      7. Semantic similarity       (full mode only)
+
     Returns: {
         "safe": bool,
         "reason": str,
@@ -421,7 +625,39 @@ def security_check_input(query, history=None, ask_gemma_fn=None):
     """
     result = {"safe": True, "reason": "", "category": "", "threat_score": 0}
 
-    # ── Layer 1: Regex rules (all modes) ──────────────────────────
+    # ── Layer 1: Token Budget (all modes) ─────────────────────────
+    budget = check_token_budget(query)
+    if not budget["safe"]:
+        return {
+            "safe": False,
+            "reason": budget["reason"],
+            "category": "prompt_flood",
+            "threat_score": 2
+        }
+
+    # ── Layer 2: JSON injection scan (all modes) ──────────────────
+    stripped = query.strip()
+    if stripped.startswith(("{", "[")):
+        json_result = scan_json_payload(query)
+        if not json_result["safe"]:
+            return {
+                "safe": False,
+                "reason": json_result["reason"],
+                "category": json_result["category"],
+                "threat_score": 2
+            }
+
+    # ── Layer 3: DNS outbound URL filter (all modes) ──────────────
+    url_result = check_outbound_urls(query)
+    if not url_result["safe"]:
+        return {
+            "safe": False,
+            "reason": url_result["reason"],
+            "category": "api_exploit",
+            "threat_score": 2
+        }
+
+    # ── Layer 4: Regex rules (all modes) ──────────────────────────
     is_malicious, category = check_rules(query)
     if is_malicious:
         desc = CATEGORY_DESCRIPTIONS.get(category, "Unknown attack pattern")
@@ -432,7 +668,22 @@ def security_check_input(query, history=None, ask_gemma_fn=None):
             "threat_score": 2
         }
 
-    # ── Layer 2: Gemma LLM judge (standard+ modes) ───────────────
+    # ── Layer 5: Multi-turn escalation (all modes) ────────────────
+    if history is not None:
+        # Count suspicious turns in the conversation so far
+        suspicious_turns = sum(
+            1 for turn in history
+            if isinstance(turn, dict) and turn.get("threat_score", 0) >= 1
+        )
+        if suspicious_turns >= CUMULATIVE_THREAT_THRESHOLD:
+            return {
+                "safe": False,
+                "reason": CATEGORY_DESCRIPTIONS["multi_turn_escalation"],
+                "category": "multi_turn_escalation",
+                "threat_score": 2
+            }
+
+    # ── Layer 6: Gemma LLM judge (standard+ modes) ───────────────
     if SECURITY_LEVEL in ("standard", "full") and ask_gemma_fn:
         print("  [🛡️ Security: Running Gemma judge...]")
         is_malicious, raw = check_gemma_judge(query, ask_gemma_fn)
@@ -445,7 +696,7 @@ def security_check_input(query, history=None, ask_gemma_fn=None):
             }
         print(f"  [🛡️ Security: Gemma judge → {raw}]")
 
-    # ── Layer 3: Semantic similarity (full mode only) ─────────────
+    # ── Layer 7: Semantic similarity (full mode only) ─────────────
     if SECURITY_LEVEL == "full":
         print("  [🛡️ Security: Checking semantic similarity...]")
         is_similar, score = check_semantic_similarity(query)
@@ -463,11 +714,21 @@ def security_check_input(query, history=None, ask_gemma_fn=None):
 
 def security_check_output(response, original_query, ask_gemma_fn=None):
     """
-    Main output security pipeline (full mode only).
+    Main output security pipeline.
+
+    Layer A (ALL modes): lightweight regex data-leak scan
+    Layer B (full mode): Gemma LLM self-reflection
 
     Returns: {"safe": bool, "reason": str}
     """
+    # Layer A: data-leak scan runs in every mode
+    leak = scan_output_for_leaks(response)
+    if not leak["safe"]:
+        return leak
+
+    # Layer B: LLM self-reflection (full mode only)
     if SECURITY_LEVEL == "full" and ask_gemma_fn:
         print("  [🛡️ Security: Running output self-reflection...]")
         return validate_output(response, original_query, ask_gemma_fn)
+
     return {"safe": True, "reason": ""}

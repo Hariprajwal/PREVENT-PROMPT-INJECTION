@@ -165,9 +165,10 @@ async def chat_endpoint(req: ChatRequest, request: Request):
 
     # Extract client IP (Support simulated header for testing)
     client_ip = request.headers.get("X-Simulate-IP", request.client.host)
+    auth_header = request.headers.get("Authorization", "")
 
-    # ── Network Security Check (Rate Limit / TOR) ───────────
-    is_allowed, block_decision, attack_type = check_network_security(client_ip)
+    # ── Network Security Check (Rate Limit / TOR / Geo / JWT) ─────
+    is_allowed, block_decision, attack_type = check_network_security(client_ip, auth_header)
     
     if not is_allowed:
         # Create block response
@@ -308,9 +309,10 @@ async def upload_endpoint(
 
     # Extract client IP
     client_ip = request.headers.get("X-Simulate-IP", request.client.host)
+    auth_header = request.headers.get("Authorization", "")
 
-    # ── Network Security Check (Rate Limit / TOR) ───────────
-    is_allowed, block_decision, attack_type = check_network_security(client_ip)
+    # ── Network Security Check (Rate Limit / TOR / Geo / JWT) ─────
+    is_allowed, block_decision, attack_type = check_network_security(client_ip, auth_header)
     
     if not is_allowed:
         response_obj = ChatResponse(
@@ -389,6 +391,112 @@ async def reset_endpoint():
     """Reset conversation history and threat scores."""
     conversation.reset()
     return {"status": "ok", "message": "Conversation and threat history cleared."}
+
+
+@app.post("/api/chat/json", response_model=ChatResponse)
+async def json_chat_endpoint(request: Request):
+    """
+    Accepts ANY JSON body, recursively scans every field for injection,
+    then forwards only safe content to the LLM.
+    
+    This endpoint handles real-world JSON API abuse scenarios:
+    - Prototype pollution (__proto__, constructor)
+    - Prompt injection buried in nested fields
+    - Oversized payloads (token budget)
+    """
+    from security_layer import scan_json_payload, check_token_budget
+    start = time.time()
+    client_ip = request.headers.get("X-Simulate-IP", request.client.host)
+    auth_header = request.headers.get("Authorization", "")
+
+    # Network check
+    is_allowed, block_decision, attack_type = check_network_security(client_ip, auth_header)
+    if not is_allowed:
+        return ChatResponse(
+            response=f"⛔ Request Blocked by Network Defense: {attack_type}",
+            risk_score=1.0, attack_type=attack_type, decision=block_decision,
+            confidence="high", matched_patterns=[],
+            normalized_input="[blocked before JSON parse]", final_prompt="",
+            output_filter_action="block", latency_ms=0,
+            model=_display_model(), security_level=SECURITY_LEVEL,
+        )
+
+    # Read raw body
+    try:
+        body_bytes = await request.body()
+        raw_body = body_bytes.decode("utf-8")
+    except Exception as e:
+        return ChatResponse(
+            response=f"⚠️ Could not read request body: {e}",
+            risk_score=0.0, attack_type=None, decision="allow", confidence="low",
+            matched_patterns=[], normalized_input="", final_prompt="",
+            output_filter_action="none", latency_ms=0,
+            model=_display_model(), security_level=SECURITY_LEVEL,
+        )
+
+    # Token budget on raw body
+    budget = check_token_budget(raw_body)
+    if not budget["safe"]:
+        return ChatResponse(
+            response=f"⛔ {budget['reason']}",
+            risk_score=0.96, attack_type="Prompt Flood / Token Exhaustion", decision="block",
+            confidence="high", matched_patterns=[{"label": budget["reason"], "type": "flood", "weight": 0.96}],
+            normalized_input=raw_body[:200], final_prompt="[BLOCKED — token budget]",
+            output_filter_action="block", latency_ms=int((time.time()-start)*1000),
+            model=_display_model(), security_level=SECURITY_LEVEL,
+        )
+
+    # JSON injection scan
+    json_result = scan_json_payload(raw_body)
+    if not json_result["safe"]:
+        flagged = json_result.get("flagged_fields", [])
+        patterns = [{"label": f["reason"], "type": f["category"], "weight": 0.97} for f in flagged]
+        return ChatResponse(
+            response=f"⛔ **JSON Injection Blocked**\n\n{json_result['reason']}\n\nMalicious keys/values were stripped. Request not forwarded to LLM.",
+            risk_score=0.99, attack_type="JSON Injection / Prototype Pollution", decision="block",
+            confidence="high", matched_patterns=patterns,
+            normalized_input=raw_body[:500], final_prompt="[BLOCKED — JSON sanitized]",
+            output_filter_action="block", latency_ms=int((time.time()-start)*1000),
+            model=_display_model(), security_level=SECURITY_LEVEL,
+        )
+
+    # Safe — extract a user message and process normally
+    try:
+        obj = __import__("json").loads(raw_body)
+        # Find first string value to use as message
+        def _find_message(o):
+            if isinstance(o, dict):
+                for k in ("message", "query", "prompt", "text", "content", "input"):
+                    if k in o and isinstance(o[k], str):
+                        return o[k]
+                for v in o.values():
+                    r = _find_message(v)
+                    if r: return r
+            elif isinstance(o, str):
+                return o
+            return None
+        message = _find_message(obj) or str(obj)[:500]
+    except Exception:
+        message = raw_body[:500]
+
+    result = smart_agent_api(message.strip(), security_enabled=True)
+    latency = int((time.time() - start) * 1000)
+    patterns = result.get("matched_patterns", [])
+    confidence = "high" if len(patterns) >= 2 else "medium" if len(patterns) == 1 else "low"
+    return ChatResponse(
+        response=result["response"],
+        risk_score=result["risk_score"],
+        attack_type=result.get("attack_type"),
+        decision=result["decision"],
+        confidence=confidence,
+        matched_patterns=patterns,
+        normalized_input=result.get("normalized_input", message),
+        final_prompt=result.get("normalized_input", message),
+        output_filter_action=result.get("output_filter_action", "none"),
+        latency_ms=latency,
+        model=_display_model(),
+        security_level=SECURITY_LEVEL,
+    )
 
 
 @app.get("/api/health")

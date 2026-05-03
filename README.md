@@ -78,4 +78,4 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 
 ---
 
-**Built with ❤️ for the Saptagiri Hackathon 2026**
+**Built with ❤️ for the Saptagiri Hackathon 2026 TEAM : TRIAL AND ERROR **

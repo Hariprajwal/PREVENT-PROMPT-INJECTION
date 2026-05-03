@@ -83,6 +83,9 @@ def classify_intent(user_input):
         r'\bwhat\s+(do|can|will|should|would)\s+you\b',
         r'\bsmart\s+or\s+dumb\b',
         r'\bdumb\s+(programme|program|ai|bot)\b',
+        r'\bwhy\s+(is|are|does|did)\b',
+        r'\b(what|how)\s+(is|are|does|did|happened)\b',
+        r'\b(not\s+working|broken|failing|latency|slow|bad)\b',
     ]
     if any(re.search(p, query_lower) for p in conversational_patterns):
         print("  [Layer 0.5: Conversational/opinion question → chat]")

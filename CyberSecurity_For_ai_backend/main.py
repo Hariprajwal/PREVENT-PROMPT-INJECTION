@@ -521,6 +521,20 @@ def smart_agent_api(user_input, security_enabled=True):
     import time
     start = time.time()
 
+    if user_input.strip().lower() == "reset":
+        conversation.reset()
+        latency = int((time.time() - start) * 1000)
+        return {
+            "response": "🔄 Session reset successfully. The threat score has been cleared. You may now continue safely.",
+            "risk_score": 0.0,
+            "attack_type": None,
+            "decision": "allow",
+            "category": "system",
+            "matched_patterns": [],
+            "normalized_input": "reset",
+            "latency_ms": latency,
+        }
+
     if not security_enabled:
         # Direct mode — no security layer
         response = chat(user_input)

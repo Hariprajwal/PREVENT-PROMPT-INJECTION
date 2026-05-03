@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Shield, Wifi, WifiOff, AlertOctagon, Globe, FileWarning, Lock, Plug } from "lucide-react";
+import { Shield, Wifi, WifiOff, AlertOctagon, Globe, FileWarning, Lock, Plug, MapPin, Key, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type NetworkAlertType = "tor" | "bot" | "proxy" | "distributed" | "file" | "vpn" | "api" | null;
+export type NetworkAlertType = "tor" | "bot" | "proxy" | "distributed" | "file" | "vpn" | "api" | "geo" | "hijack" | "flood" | null;
 
 interface NetworkAlertProps {
   type: NetworkAlertType;
@@ -90,6 +90,36 @@ const ALERT_CONFIG: Record<NonNullable<NetworkAlertType>, {
     dotColor: "bg-teal-400",
     glow: "shadow-[0_0_20px_rgba(20,184,166,0.3)]",
     tag: "API EXPLOIT",
+  },
+  geo: {
+    icon: MapPin,
+    label: "Geo-IP Country Block",
+    detail: "Request origin from restricted/sanctioned region — country blacklist enforced",
+    color: "from-rose-950/90 to-red-900/70 border-rose-600/60",
+    badgeColor: "bg-rose-700/30 border-rose-400/60 text-rose-200",
+    dotColor: "bg-rose-300",
+    glow: "shadow-[0_0_24px_rgba(225,29,72,0.45)]",
+    tag: "GEO BLOCK",
+  },
+  hijack: {
+    icon: Key,
+    label: "Session Token Hijacking",
+    detail: "Stolen Bearer token detected — geo mismatch + fingerprint anomaly",
+    color: "from-indigo-900/80 to-violet-900/60 border-indigo-500/60",
+    badgeColor: "bg-indigo-600/30 border-indigo-400/60 text-indigo-300",
+    dotColor: "bg-indigo-400",
+    glow: "shadow-[0_0_20px_rgba(99,102,241,0.35)]",
+    tag: "TOKEN HIJACK",
+  },
+  flood: {
+    icon: BarChart3,
+    label: "Prompt Flooding Attack",
+    detail: "Context window exhaustion attempt — token limit exceeded",
+    color: "from-yellow-900/80 to-amber-900/60 border-yellow-500/60",
+    badgeColor: "bg-yellow-600/30 border-yellow-400/60 text-yellow-200",
+    dotColor: "bg-yellow-400",
+    glow: "shadow-[0_0_20px_rgba(234,179,8,0.35)]",
+    tag: "TOKEN FLOOD",
   },
 };
 

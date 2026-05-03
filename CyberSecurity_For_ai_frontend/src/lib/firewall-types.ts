@@ -1,4 +1,4 @@
-export type Decision = "allow" | "sanitize" | "block";
+export type Decision = "allow" | "sanitize" | "block" | "restrict";
 
 export interface FirewallMeta {
   risk_score: number;

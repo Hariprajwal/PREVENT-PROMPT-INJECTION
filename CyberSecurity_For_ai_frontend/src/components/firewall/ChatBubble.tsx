@@ -1,5 +1,5 @@
 import ReactMarkdown from "react-markdown";
-import { Shield, ShieldAlert, ShieldCheck, ShieldX, User, WifiOff, AlertOctagon, Globe, FileWarning, Lock, Plug, Wifi } from "lucide-react";
+import { Shield, ShieldAlert, ShieldCheck, ShieldX, User, WifiOff, AlertOctagon, Globe, FileWarning, Lock, Plug, Wifi, MapPin, Key, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/lib/firewall-types";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,9 @@ const networkBadge: Record<string, { label: string; className: string; icon: Rea
   "Malicious File Upload":            { label: "MALICIOUS FILE",    className: "text-red-200 border-red-500/60 bg-red-800/30",           icon: FileWarning },
   "VPN Policy Evasion":               { label: "VPN EVASION",       className: "text-amber-300 border-amber-400/60 bg-amber-600/20",     icon: Lock },
   "Plugin/API Exploit":               { label: "API EXPLOIT",       className: "text-teal-300 border-teal-400/60 bg-teal-600/20",        icon: Plug },
+  "Geo-IP Country Block":             { label: "GEO BLOCK",         className: "text-rose-200 border-rose-500/60 bg-rose-900/30",        icon: MapPin },
+  "Session Token Hijacking":          { label: "TOKEN HIJACK",      className: "text-indigo-300 border-indigo-400/60 bg-indigo-600/20",  icon: Key },
+  "Prompt Flooding Attack":           { label: "TOKEN FLOOD",       className: "text-yellow-300 border-yellow-400/60 bg-yellow-600/20",  icon: BarChart3 },
 };
 
 export function ChatBubble({ msg }: { msg: ChatMessage }) {

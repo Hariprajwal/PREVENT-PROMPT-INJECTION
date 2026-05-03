@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Shield, ShieldOff, Send, Sparkles, Activity, Zap, AlertTriangle, Bot, WifiOff, Globe, FileWarning, Plug, Lock } from "lucide-react";
+import { Shield, ShieldOff, Send, Sparkles, Activity, Zap, AlertTriangle, Bot, WifiOff, Globe, FileWarning, Plug, Lock, MapPin, Key, BarChart3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -29,17 +29,25 @@ const MODELS = [
 
 // ── Simulated Attacker IPs ────────────────────────────────────────
 const ATTACKER_IPS = [
-  { value: "normal", label: "👤 Normal User",                    ip: null,              kind: null },
-  { value: "tor1",   label: "🌐 TOR Node (185.220.101.1)",       ip: "185.220.101.1",    kind: "tor" },
-  { value: "tor2",   label: "🌐 TOR Node (104.244.72.115)",      ip: "104.244.72.115",   kind: "tor" },
-  { value: "proxy",  label: "🔴 Known Proxy Attack (192.168.1.100)", ip: "192.168.1.100", kind: "proxy" },
-  { value: "vpn",    label: "🔒 VPN Insider (10.0.0.5)",         ip: "10.0.0.5",         kind: "vpn" },
+  { value: "normal", label: "👤 Normal User",                     ip: null,              kind: null },
+  { value: "tor1",   label: "🌐 TOR Node (185.220.101.1)",        ip: "185.220.101.1",    kind: "tor" },
+  { value: "tor2",   label: "🌐 TOR Node (104.244.72.115)",       ip: "104.244.72.115",   kind: "tor" },
+  { value: "proxy",  label: "🔴 Known Proxy Attack (192.168.1.100)", ip: "192.168.1.100",  kind: "proxy" },
+  { value: "vpn",    label: "🔒 VPN Insider (10.0.0.5)",          ip: "10.0.0.5",         kind: "vpn" },
+  { value: "geo_cn", label: "🇨🇳 China (CN) — Geo Block",          ip: "116.31.116.1",    kind: "geo", country: "China (CN)", flag: "🇨🇳" },
+  { value: "geo_ru", label: "🇷🇺 Russia (RU) — Geo Block",        ip: "95.173.136.1",    kind: "geo", country: "Russia (RU)", flag: "🇷🇺" },
+  { value: "geo_ir", label: "🇮🇷 Iran (IR) — Geo Block",          ip: "5.160.0.1",       kind: "geo", country: "Iran (IR)", flag: "🇮🇷" },
 ];
 
 // ── Known TOR IPs ─────────────────────────────────────────────────
 const TOR_IPS   = new Set(["185.220.101.1", "104.244.72.115"]);
 const PROXY_IPS = new Set(["192.168.1.100"]);
 const VPN_IPS   = new Set(["10.0.0.5"]);
+const GEO_IPS   = new Map([
+  ["116.31.116.1", { country: "China (CN)",  flag: "🇨🇳", region: "Asia/Shanghai" }],
+  ["95.173.136.1", { country: "Russia (RU)", flag: "🇷🇺", region: "Europe/Moscow" }],
+  ["5.160.0.1",    { country: "Iran (IR)",   flag: "🇮🇷", region: "Asia/Tehran" }],
+]);
 
 // ── DNS Allowlist (for API exploit check) ─────────────────────────
 const DNS_ALLOWLIST = new Set(["google.com","openai.com","supabase.com","api.example.com"]);
@@ -67,6 +75,7 @@ export default function Index() {
   const [botRunning, setBotRunning] = useState(false);
   const [distRunning, setDistRunning] = useState(false);
   const [scanProgress, setScanProgress] = useState<number | null>(null);
+  const [tokenCount, setTokenCount] = useState<number | null>(null);
 
   // Rate tracking per IP
   const rateTracker = useRef<Map<string, number[]>>(new Map());
@@ -98,6 +107,7 @@ export default function Index() {
     if (ip && TOR_IPS.has(ip))   return { blocked: true,  restrict: false, type: "tor" };
     if (ip && PROXY_IPS.has(ip)) return { blocked: true,  restrict: false, type: "proxy" };
     if (ip && VPN_IPS.has(ip))   return { blocked: false, restrict: true,  type: "vpn" };
+    if (ip && GEO_IPS.has(ip))   return { blocked: true,  restrict: false, type: "geo" };
     const trackIp = ip ?? "127.0.0.1";
     const now = Date.now();
     const history = (rateTracker.current.get(trackIp) ?? []).filter(t => now - t < RATE_LIMIT_WINDOW_MS);
@@ -131,11 +141,12 @@ export default function Index() {
     }
 
     if (netResult.blocked) {
-      const typeMap: Record<string, string> = { tor: "TOR Anonymity Abuse", proxy: "Known Proxy Attack", bot: "Prompt Injection (Bot Attack)" };
+      const typeMap: Record<string, string> = { tor: "TOR Anonymity Abuse", proxy: "Known Proxy Attack", bot: "Prompt Injection (Bot Attack)", geo: "Geo-IP Country Block" };
       const attackType = typeMap[netResult.type ?? ""] ?? "Unknown Attack";
+      const geoInfo = ip ? GEO_IPS.get(ip) : null;
       const meta: FirewallMeta = { risk_score: 1.0, attack_type: attackType, decision: "block", confidence: "high", matched_patterns: [], normalized_input: text, final_prompt: "[BLOCKED — not sent to LLM]", output_filter_action: "block", latency_ms: 0 };
-      setMessages(prev => [...prev, { id: newId(), role: "assistant", content: `⛔ **Request Blocked by Network Defense**\n\n**Attack Type:** ${attackType}\n**Source IP:** ${ip ?? "127.0.0.1"}\n\nThis request was intercepted and blocked before reaching the AI model.`, meta }]);
-      setNetworkAlert({ type: netResult.type, ip: ip ?? "127.0.0.1" });
+      setMessages(prev => [...prev, { id: newId(), role: "assistant", content: `⛔ **Request Blocked by Network Defense**\n\n**Attack Type:** ${attackType}${geoInfo ? `\n**Region:** ${geoInfo.flag} ${geoInfo.country} | ${geoInfo.region}` : ""}\n**Source IP:** ${ip ?? "127.0.0.1"}\n\nThis request was intercepted and blocked before reaching the AI model.`, meta }]);
+      setNetworkAlert({ type: netResult.type, ip: ip ?? "127.0.0.1", extra: geoInfo ? `${geoInfo.flag} ${geoInfo.region} — country blacklist` : undefined });
       setLoading(false); setLogRefresh(k => k + 1); return;
     }
 
@@ -321,10 +332,12 @@ export default function Index() {
                 })()}
               </div>
               <div className="flex gap-2 flex-wrap">
-                <Button size="sm" variant="outline" disabled={botRunning}  className="text-xs font-mono h-7 border-red-500/40    text-red-400    hover:bg-red-500/10    gap-1" onClick={runBotAttack}><Bot         className="w-3 h-3" />{botRunning  ? "Attacking…" : "🤖 Bot Attack"}</Button>
+                <Button size="sm" variant="outline" disabled={botRunning}  className="text-xs font-mono h-7 border-red-500/40    text-red-400    hover:bg-red-500/10    gap-1" onClick={runBotAttack}><Bot         className="w-3 h-3" />{botRunning  ? "Attacking…" : "🤖 Bot"}</Button>
                 <Button size="sm" variant="outline" disabled={distRunning} className="text-xs font-mono h-7 border-rose-500/40   text-rose-400   hover:bg-rose-500/10   gap-1" onClick={runDistributedAttack}><Globe     className="w-3 h-3" />{distRunning ? "Flooding…"  : "🌐 Distributed"}</Button>
-                <Button size="sm" variant="outline" disabled={loading}     className="text-xs font-mono h-7 border-red-700/40    text-red-300    hover:bg-red-700/10    gap-1" onClick={runFileUpload}><FileWarning className="w-3 h-3" />📁 File Upload</Button>
-                <Button size="sm" variant="outline" disabled={loading}     className="text-xs font-mono h-7 border-teal-500/40   text-teal-400   hover:bg-teal-500/10   gap-1" onClick={runApiExploit}><Plug        className="w-3 h-3" />🔌 API Exploit</Button>
+                <Button size="sm" variant="outline" disabled={loading}     className="text-xs font-mono h-7 border-red-700/40    text-red-300    hover:bg-red-700/10    gap-1" onClick={runFileUpload}><FileWarning className="w-3 h-3" />📁 File</Button>
+                <Button size="sm" variant="outline" disabled={loading}     className="text-xs font-mono h-7 border-teal-500/40   text-teal-400   hover:bg-teal-500/10   gap-1" onClick={runApiExploit}><Plug        className="w-3 h-3" />🔌 API</Button>
+                <Button size="sm" variant="outline" disabled={loading}     className="text-xs font-mono h-7 border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/10 gap-1" onClick={runTokenHijack}><Key        className="w-3 h-3" />🔑 Hijack</Button>
+                <Button size="sm" variant="outline" disabled={loading}     className="text-xs font-mono h-7 border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 gap-1" onClick={runPromptFlood}><BarChart3  className="w-3 h-3" />📊 Flood</Button>
                 {ATTACK_PROMPTS.map((p, i) => (
                   <Button key={i} size="sm" variant="outline" className="text-xs font-mono h-7 border-destructive/40 text-destructive hover:bg-destructive/10" onClick={() => send(p)}>🧪 Attack #{i + 1}</Button>
                 ))}
@@ -332,7 +345,19 @@ export default function Index() {
             </div>
 
             <div ref={scrollRef} className="flex-1 overflow-y-auto scrollbar-thin px-5 py-4 space-y-5">
-              {/* File scan progress */}
+              {/* Token flood counter */}
+              {tokenCount !== null && (
+                <div className="flex items-center gap-3 px-4 py-2 rounded-lg border border-yellow-600/50 bg-yellow-950/40 text-xs font-mono">
+                  <BarChart3 className="w-4 h-4 text-yellow-400 animate-pulse shrink-0" />
+                  <div className="flex-1">
+                    <div className="text-yellow-200 mb-1">💥 Prompt flood in progress — {tokenCount.toLocaleString()} / 4,096 tokens</div>
+                    <div className="w-full bg-yellow-900/40 rounded-full h-1.5">
+                      <div className={`h-1.5 rounded-full transition-all duration-200 ${tokenCount > 4096 ? "bg-red-500" : "bg-yellow-500"}`} style={{ width: `${Math.min(100, (tokenCount / 4096) * 100)}%` }} />
+                    </div>
+                  </div>
+                  <span className={tokenCount > 4096 ? "text-red-400 font-bold" : "text-yellow-400"}>{tokenCount > 4096 ? "⛔ EXCEEDED" : "flooding…"}</span>
+                </div>
+              )}
               {scanProgress !== null && (
                 <div className="flex items-center gap-3 px-4 py-2 rounded-lg border border-red-700/50 bg-red-950/40 text-xs font-mono">
                   <FileWarning className="w-4 h-4 text-red-400 animate-pulse shrink-0" />

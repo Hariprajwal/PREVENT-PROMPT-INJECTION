@@ -165,7 +165,7 @@ export default function Index() {
 
     // ── Call Local FastAPI Server ─────────────────────────────────
     try {
-      const res = await fetch("http://localhost:8000/api/chat", {
+      const res = await fetch("http://localhost:8008/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

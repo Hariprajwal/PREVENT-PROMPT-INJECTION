@@ -49,7 +49,18 @@ git clone https://github.com/Hariprajwal/PREVENT-PROPMT-INEJECTION.git
 cd PREVENT-PROPMT-INEJECTION
 ```
 
-### 2. Setup Backend
+### ⚡ Quick Start (1-Click Windows Launcher)
+Double-click `launch.bat` (or `run.bat`) in the root folder, or run:
+```cmd
+launch.bat
+```
+This automatically launches both the **FastAPI Backend** and **React Frontend**, verifies dependencies, and opens `http://localhost:5173` in your browser.
+
+---
+
+### Manual Setup
+
+#### Setup Backend
 ```bash
 cd CyberSecurity_For_ai_backend
 pip install -r requirements.txt
@@ -61,7 +72,7 @@ pip install -r requirements.txt
 python api_server.py
 ```
 
-### 3. Setup Frontend
+#### Setup Frontend
 ```bash
 cd CyberSecurity_For_ai_frontend
 npm install

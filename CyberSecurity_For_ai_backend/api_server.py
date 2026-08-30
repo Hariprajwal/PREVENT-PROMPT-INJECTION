@@ -55,7 +55,7 @@ API_PROVIDER = os.getenv("API_PROVIDER", "gemini").strip().lower()
 API_KEY = os.getenv("API_KEY", "").strip()
 API_MODEL = os.getenv("API_MODEL", "gemini-2.0-flash").strip()
 SERVER_HOST = os.getenv("SERVER_HOST", "0.0.0.0")
-SERVER_PORT = int(os.getenv("SERVER_PORT", "8000"))
+SERVER_PORT = int(os.getenv("SERVER_PORT", "8008"))
 
 from main import smart_agent_api, conversation, OLLAMA_URL, MODEL_NAME
 from security_layer import SECURITY_LEVEL

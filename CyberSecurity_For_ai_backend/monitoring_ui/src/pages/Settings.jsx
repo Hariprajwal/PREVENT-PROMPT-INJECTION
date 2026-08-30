@@ -85,7 +85,7 @@ const Settings = () => {
                         <h2>Configuration</h2>
                         <div style={{ marginTop: '16px' }}>
                             <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                                <b>Chatbot API:</b> http://localhost:8000/api/chat
+                                <b>Chatbot API:</b> http://localhost:8008/api/chat
                             </p>
                             <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
                                 <b>Monitoring API:</b> http://localhost:8001/api

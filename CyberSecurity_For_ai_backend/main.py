@@ -428,18 +428,19 @@ Answer:"""
 
 
 # ─── Chat Agent (no web) ───────────────────────────────────────────────
-def chat(query):
+def chat(query, safe_mode=False):
     """Direct conversation with Gemma, including recent conversation history."""
     print("[Agent: Thinking...]")
     history_text = conversation.get_history_text(max_turns=6)
     if history_text:
-        prompt = f"""Here is the recent conversation history:
+        prompt = f"""Conversation history:
 {history_text}
 
-Now answer the following: {query}"""
+User: {query}
+Assistant:"""
     else:
         prompt = query
-    return ask_gemma(prompt)
+    return ask_gemma(prompt, safe_mode=safe_mode)
 
 
 # ─── Smart Agent (auto-routing) ──────────────────────────────────────
@@ -611,8 +612,10 @@ def smart_agent_api(user_input, security_enabled=True):
     words = processed_input.split()
     urls_in_input = [w for w in words if w.startswith("http://") or w.startswith("https://")]
 
+    should_safe_mode = (decision == "restrict")
+
     if urls_in_input:
-        response = url_agent(urls_in_input[0], processed_input)
+        response = url_agent(urls_in_input[0], processed_input) # Assuming url_agent doesn't need it right now
     else:
         print("[Agent: Classifying your query...]")
         intent = classify_intent(processed_input)
@@ -623,7 +626,7 @@ def smart_agent_api(user_input, security_enabled=True):
         elif intent == "web_search":
             response = web_agent(processed_input)
         else:
-            response = chat(processed_input)
+            response = chat(processed_input, safe_mode=should_safe_mode)
 
     # ── Security: Validate output ────────────────────────────────
     out_check = security_check_output(response, processed_input, ask_gemma)

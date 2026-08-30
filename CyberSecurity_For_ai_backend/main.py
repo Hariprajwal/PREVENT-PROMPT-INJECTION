@@ -564,6 +564,8 @@ def smart_agent_api(user_input, security_enabled=True):
     print("[🛡️ Security: Checking input...]")
     check = security_check_input(processed_input, conversation.get_history(), ask_gemma)
     threat_score = check.get("threat_score", 0)
+    risk_score = check.get("risk_score", 0.0)   # real graduated score 0.0–1.0
+    decision   = check.get("decision", "allow")  # "allow" | "restrict" | "block"
     conversation.add_turn("user", processed_input, threat_score)
 
     if not check["safe"]:
@@ -573,12 +575,13 @@ def smart_agent_api(user_input, security_enabled=True):
         latency = int((time.time() - start) * 1000)
         return {
             "response": blocked_msg,
-            "risk_score": 1.0,
+            "risk_score": risk_score,
             "attack_type": check.get("category", "unknown"),
             "decision": "block",
             "category": check.get("category", "unknown"),
-            "matched_patterns": [{"label": check["reason"], "type": check.get("category", "unknown"), "weight": 1.0}],
+            "matched_patterns": [{"label": check["reason"], "type": check.get("category", "unknown"), "weight": risk_score}],
             "normalized_input": processed_input,
+            "output_filter_action": "block",
             "latency_ms": latency,
         }
 
@@ -600,14 +603,9 @@ def smart_agent_api(user_input, security_enabled=True):
 
     print("  [🛡️ Security: Input passed ✓]")
 
-    # Determine risk level for decision label
-    risk_score = check.get("threat_score", 0) / 2.0  # normalize 0-2 to 0-1
-    if risk_score >= 0.7:
-        decision = "block"
-    elif risk_score >= 0.3:
-        decision = "sanitize"
-    else:
-        decision = "allow"
+    # Use real graduated risk score and decision from security layer
+    if decision == "restrict":
+        print(f"  [🛡️ Security: RESTRICTED — {risk_score:.0%} risk, routing with safe-mode wrapping]")
 
     # Route to appropriate agent
     words = processed_input.split()

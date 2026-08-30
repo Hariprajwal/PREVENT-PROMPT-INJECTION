@@ -54,7 +54,7 @@ export function ChatBubble({ msg }: { msg: ChatMessage }) {
           {isUser ? (
             <p className="whitespace-pre-wrap break-words">{msg.content}</p>
           ) : (
-            <div className="prose prose-sm prose-invert max-w-none prose-p:my-1.5 prose-pre:bg-secondary prose-pre:border prose-pre:border-border">
+            <div className="prose prose-sm max-w-none dark:prose-invert prose-p:my-1.5 prose-pre:bg-secondary prose-pre:border prose-pre:border-border">
               <ReactMarkdown>{msg.content}</ReactMarkdown>
             </div>
           )}

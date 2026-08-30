@@ -536,10 +536,14 @@ def smart_agent_api(user_input, security_enabled=True):
         }
 
     if not security_enabled:
-        # Direct mode — no security layer
-        response = chat(user_input)
-        conversation.add_turn("user", user_input, 0)
-        conversation.add_turn("assistant", response, 0)
+        # ── RAW BYPASS MODE — Firewall is OFF ────────────────────────────
+        # Send the raw user input DIRECTLY to Gemma, completely bypassing:
+        #   - All security layers (regex, semantic, LLM-as-judge)
+        #   - Conversation history (which may contain blocked/refusal messages)
+        #   - Safe-mode system prompts
+        # This gives the exact same behaviour as talking to Ollama natively.
+        print("[Agent: Firewall OFF — raw direct mode, bypassing all security context]")
+        response = ask_gemma(user_input, safe_mode=False)
         latency = int((time.time() - start) * 1000)
         return {
             "response": response,
@@ -549,6 +553,7 @@ def smart_agent_api(user_input, security_enabled=True):
             "category": "",
             "matched_patterns": [],
             "normalized_input": user_input,
+            "output_filter_action": "none",
             "latency_ms": latency,
         }
 

@@ -56,42 +56,53 @@
     --sidebar-ring: 158 95% 52%;
   }
 
+  /* ── LIGHT MODE: GitHub / Vercel / Linear tier palette ──────────────── */
   .light {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    /* Canvas */
+    --background: 210 22% 96%;          /* #EEF2F7 – soft blue-grey slate, not harsh white */
+    --foreground: 222 47% 11%;          /* #0F172A – deep charcoal, max legibility */
 
-    --card: 0 0% 100%;
+    /* Cards + Popovers: pure white elevated above canvas */
+    --card: 0 0% 100%;                  /* #FFFFFF */
     --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 158 95% 40%;
-    --primary-foreground: 210 40% 98%;
-    --primary-glow: 158 95% 45%;
+    /* Primary: deep vibrant cyber-green (readable on white) */
+    --primary: 158 80% 30%;             /* #0D7A56 – deep green, WCAG AAA */
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 158 80% 35%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222 47% 11.2%;
+    /* Secondary surface (input backgrounds, tag chips) */
+    --secondary: 213 27% 93%;           /* #E2E8F0 – slate-200 */
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Muted: slate-300 backgrounds, slate-600 text */
+    --muted: 213 27% 93%;
+    --muted-foreground: 215 25% 35%;    /* #3D5166 – dark readable slate */
 
-    --accent: 199 95% 50%;
-    --accent-foreground: 222 47% 11.2%;
+    /* Accent: crisp sky blue */
+    --accent: 199 89% 38%;              /* #0B7BAF – vivid blue, readable on white */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Danger */
+    --destructive: 0 78% 48%;           /* #D42B2B – bold rich red */
+    --destructive-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
+    /* Warning */
+    --warning: 35 92% 43%;              /* #D07800 – deep amber */
+    --warning-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 158 95% 40%;
+    /* Borders: crisp, clearly visible slate lines */
+    --border: 214 22% 82%;              /* #C4CDD9 – slate-300 */
+    --input: 214 20% 90%;               /* #DDE3EA – light input fill */
+    --ring: 158 80% 30%;
 
-    --gradient-bg: radial-gradient(ellipse at top, hsl(0 0% 98%), hsl(0 0% 100%));
-    --shadow-glow: 0 0 16px -4px hsl(158 95% 40% / 0.3);
-    --shadow-danger: 0 0 16px -4px hsl(0 84% 60% / 0.3);
+    /* Gradients */
+    --gradient-bg: radial-gradient(ellipse at top left, hsl(210 40% 98%), hsl(210 22% 94%));
+    --shadow-glow: 0 0 16px -2px hsl(158 80% 30% / 0.25);
+    --shadow-danger: 0 0 16px -2px hsl(0 78% 48% / 0.25);
   }
 }
 

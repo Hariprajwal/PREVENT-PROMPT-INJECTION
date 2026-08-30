@@ -418,15 +418,16 @@ def calculate_risk_score(query: str, history: list = None) -> tuple:
             matched_category = "command_access"
             matched_rule = "keyword"
 
-    # ── 6. ALL-CAPS aggressive phrasing ──────────────────────────────
-    words = query.split()
-    if len(words) >= 3:
-        caps_ratio = sum(1 for w in words if w.isupper() and len(w) > 2) / len(words)
-        if caps_ratio >= 0.5:
-            score = min(1.0, score + 0.05)
+    # ── 6. ALL-CAPS aggressive phrasing (only if query is already suspicious) ─
+    if score > 0.0:
+        words = query.split()
+        if len(words) >= 3:
+            caps_ratio = sum(1 for w in words if w.isupper() and len(w) > 2) / len(words)
+            if caps_ratio >= 0.5:
+                score = min(1.0, score + 0.05)
 
-    # ── 7. Multi-turn cumulative suspicious score ─────────────────────
-    if history:
+    # ── 7. Multi-turn cumulative score (only if query is already suspicious) ──
+    if score > 0.0 and history:
         prior_suspicious = sum(
             1 for turn in history
             if isinstance(turn, dict) and turn.get("threat_score", 0) >= 1

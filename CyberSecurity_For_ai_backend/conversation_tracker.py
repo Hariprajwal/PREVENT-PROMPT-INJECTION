@@ -44,11 +44,18 @@ class ConversationTracker:
         return self.history
 
     def get_history_text(self, max_turns=6):
-        """Return recent conversation history as formatted text for context injection."""
+        """Return recent conversation history as formatted text for context injection.
+        Only includes clean, safe turns to prevent history contamination and LLM refusal loops."""
         lines = []
         for turn in self.history[-max_turns:]:
+            # Skip turns that had a threat score or contain firewall error/refusal indicators
+            if turn.get("threat_score", 0) > 0:
+                continue
+            content = turn.get("content", "")
+            if content.startswith("🛡️") or content.startswith("⛔") or "Request blocked" in content or "Session Token Hijacking" in content:
+                continue
             prefix = "User" if turn["role"] == "user" else "Assistant"
-            lines.append(f"{prefix}: {turn['content'][:300]}")
+            lines.append(f"{prefix}: {content[:300]}")
         return "\n".join(lines)
 
     # ── Context storage (for URL/page fetched content) ─────────────────
